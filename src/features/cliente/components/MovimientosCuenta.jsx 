@@ -1,0 +1,347 @@
+// MovimientosCuenta.jsx — Banquito
+// Vista de movimientos / historial de operaciones para el Ejecutivo de Sucursal.
+//
+// Trazabilidad: RF-CLI-02, RF-CLI-08, RNF-CLI-02, RNF-CLI-08 · CU-CLI-01
+// Actor: EJECUTIVO_SUCURSAL
+// Tabla fuente: tbl_transaccion
+
+import { useState, useEffect } from 'react'
+import { cuentasPorCliente, movimientosCuenta } from '../../../api'
+import { TrazabilidadBar, RfBadge } from '../../../components/RfBadge'
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const TIPO_OP = {
+  DEPOSITO:      { label: 'Depósito',      icon: '⬆',  color: 'text-emerald-400', bg: 'bg-emerald-900/30' },
+  RETIRO:        { label: 'Retiro',        icon: '⬇',  color: 'text-red-400',     bg: 'bg-red-900/30' },
+  TRANSFERENCIA: { label: 'Transferencia', icon: '↔',  color: 'text-sky-400',     bg: 'bg-sky-900/30' },
+  PAGO:          { label: 'Pago',          icon: '💳', color: 'text-violet-400',  bg: 'bg-violet-900/30' },
+}
+
+const ESTADO_TX = {
+  COMPLETADA: { label: 'Completada', color: 'text-emerald-400' },
+  PENDIENTE:  { label: 'Pendiente',  color: 'text-amber-400' },
+  CANCELADA:  { label: 'Cancelada',  color: 'text-slate-400' },
+  REVERTIDA:  { label: 'Revertida',  color: 'text-orange-400' },
+}
+
+const CANAL_ICON = {
+  WEB:        '🌐',
+  CAJERO_ATM: '🏧',
+  SUCURSAL:   '🏦',
+}
+
+function moneda(val) {
+  if (val == null) return '—'
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val)
+}
+
+function fechaHora(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('es-MX', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
+// ── Fila de movimiento ────────────────────────────────────────────────────────
+
+function FilaMovimiento({ mov }) {
+  const op     = TIPO_OP[mov.tipoOperacion]    || { label: mov.tipoOperacion,  icon: '•', color: 'text-slate-300', bg: 'bg-slate-800' }
+  const estado = ESTADO_TX[mov.estado]          || { label: mov.estado,         color: 'text-slate-400' }
+  const esIngreso = mov.tipoOperacion === 'DEPOSITO'
+
+  return (
+    <tr className={`border-b border-slate-700/40 transition-colors hover:bg-slate-800/50 ${
+      mov.sospechosa ? 'bg-red-950/20' : ''
+    }`}>
+      {/* Tipo */}
+      <td className="py-3 px-3">
+        <div className={`inline-flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-medium ${op.bg} ${op.color}`}>
+          <span>{op.icon}</span>
+          {op.label}
+        </div>
+      </td>
+
+      {/* Concepto */}
+      <td className="py-3 px-3 max-w-[180px]">
+        <p className="text-sm text-slate-200 truncate">{mov.concepto || '—'}</p>
+        {mov.referenciaNumerica && (
+          <p className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {mov.referenciaNumerica}</p>
+        )}
+      </td>
+
+      {/* Monto — RF-CLI-02 */}
+      <td className="py-3 px-3 tabular-nums text-right">
+        <span className={`text-base font-semibold ${esIngreso ? 'text-emerald-400' : 'text-red-400'}`}>
+          {esIngreso ? '+' : '-'}{moneda(mov.monto)}
+        </span>
+        {mov.comision > 0 && (
+          <p className="text-[10px] text-slate-500 mt-0.5">Comisión: {moneda(mov.comision)}</p>
+        )}
+      </td>
+
+      {/* Canal — RF-CLI-02 */}
+      <td className="py-3 px-3 text-center">
+        <span title={mov.canal} className="text-lg">
+          {CANAL_ICON[mov.canal] || '•'}
+        </span>
+      </td>
+
+      {/* Estado */}
+      <td className={`py-3 px-3 text-xs font-medium ${estado.color}`}>
+        {estado.label}
+      </td>
+
+      {/* Timestamp */}
+      <td className="py-3 px-3 text-[11px] text-slate-500 whitespace-nowrap">
+        {fechaHora(mov.timestamp)}
+      </td>
+
+      {/* Flags de trazabilidad */}
+      <td className="py-3 px-3">
+        <div className="flex flex-wrap gap-1 justify-end">
+          {/* Operación sospechosa — RNF-CLI-08 */}
+          {mov.sospechosa && (
+            <span title="Operación marcada como sospechosa (RNF-CLI-08)"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-900/70 text-red-300 border border-red-600 animate-pulse">
+              ⚠ Fraude
+            </span>
+          )}
+          {/* Comprobante generado — RF-CLI-08 */}
+          {mov.comprobanteGenerado && (
+            <span title="Comprobante PDF/XML generado (RF-CLI-08)"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 border border-slate-600">
+              📄 PDF
+            </span>
+          )}
+          <RfBadge code="RF-CLI-02" />
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// ── Selector de cuenta ────────────────────────────────────────────────────────
+
+function SelectorCuenta({ cuentas, seleccionada, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {cuentas.map((c) => (
+        <button
+          key={c.idCuenta}
+          onClick={() => onChange(c.idCuenta)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+            seleccionada === c.idCuenta
+              ? 'bg-blue-700 border-blue-500 text-white'
+              : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+          }`}
+        >
+          {c.tipoCuenta} · {c.numeroCuenta?.slice(-6)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Resumen de cuenta ─────────────────────────────────────────────────────────
+
+function ResumenCuenta({ data }) {
+  if (!data) return null
+  return (
+    <div className="flex flex-wrap gap-4 p-4 bg-slate-800/60 rounded-xl border border-slate-700 mb-4">
+      <div>
+        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cuenta</p>
+        <p className="text-sm font-mono text-slate-200">{data.numeroCuenta}</p>
+      </div>
+      <div>
+        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Tipo</p>
+        <p className="text-sm text-slate-200">{data.tipoCuenta}</p>
+      </div>
+      <div>
+        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Saldo actual</p>
+        <p className="text-lg font-bold text-white tabular-nums">
+          {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(data.saldoActual || 0)}
+        </p>
+      </div>
+      <div>
+        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Movimientos</p>
+        <p className="text-sm text-slate-200">{data.movimientos?.length ?? 0} registros</p>
+      </div>
+    </div>
+  )
+}
+
+// ── Filtros ───────────────────────────────────────────────────────────────────
+
+function filtrarMovimientos(movs, filtroTipo, filtroBusqueda) {
+  return (movs || []).filter((m) => {
+    const tipoOk   = filtroTipo === 'TODOS' || m.tipoOperacion === filtroTipo
+    const textoOk  = !filtroBusqueda || (m.concepto || '').toLowerCase().includes(filtroBusqueda.toLowerCase())
+    return tipoOk && textoOk
+  })
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
+
+/**
+ * MovimientosCuenta
+ * Muestra el historial de movimientos de las cuentas del cliente.
+ *
+ * Props:
+ *   idCliente — Integer
+ */
+export default function MovimientosCuenta({ idCliente }) {
+  const [cuentas,      setCuentas]      = useState([])
+  const [cuentaSel,    setCuentaSel]    = useState(null)
+  const [movData,      setMovData]      = useState(null)
+  const [loadCuentas,  setLoadCuentas]  = useState(true)
+  const [loadMovs,     setLoadMovs]     = useState(false)
+  const [error,        setError]        = useState(null)
+  const [filtroTipo,   setFiltroTipo]   = useState('TODOS')
+  const [busqueda,     setBusqueda]     = useState('')
+
+  // Cargar cuentas del cliente
+  useEffect(() => {
+    if (!idCliente) return
+    setLoadCuentas(true)
+    cuentasPorCliente(idCliente)
+      .then((lista) => {
+        setCuentas(lista)
+        if (lista.length > 0) setCuentaSel(lista[0].idCuenta)
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoadCuentas(false))
+  }, [idCliente])
+
+  // Cargar movimientos cuando cambia la cuenta seleccionada
+  // RNF-CLI-02: debe responder < 5 s
+  useEffect(() => {
+    if (!cuentaSel) return
+    setLoadMovs(true)
+    setMovData(null)
+    movimientosCuenta(cuentaSel)
+      .then(setMovData)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoadMovs(false))
+  }, [cuentaSel])
+
+  const movsFiltrados = filtrarMovimientos(movData?.movimientos, filtroTipo, busqueda)
+  const hayFraude     = movData?.movimientos?.some(m => m.sospechosa)
+
+  if (loadCuentas) return (
+    <div className="flex items-center justify-center h-40 text-slate-400 gap-3">
+      <span className="animate-spin text-xl">⏳</span> Cargando cuentas…
+    </div>
+  )
+
+  if (error) return (
+    <div className="rounded-lg bg-red-900/30 border border-red-700 p-4 text-red-300 text-sm">
+      ⚠ Error: {error}
+    </div>
+  )
+
+  return (
+    <div className="space-y-4">
+
+      {/* Barra de trazabilidad */}
+      <TrazabilidadBar
+        codes={['RF-CLI-02', 'RF-CLI-08', 'RNF-CLI-02', 'RNF-CLI-08', 'CU-CLI-01']}
+        label="Movimientos de cuenta"
+      />
+
+      {/* Alerta de fraude — RNF-CLI-08 */}
+      {hayFraude && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-red-950/40 border border-red-700 text-red-300 text-sm">
+          <span className="text-lg animate-pulse">⚠</span>
+          <div>
+            <span className="font-semibold">Operación sospechosa detectada</span>
+            <span className="text-red-400 ml-2 text-[11px]">
+              <RfBadge code="RNF-CLI-08" />
+            </span>
+            <p className="text-xs text-red-400 mt-0.5">Esta cuenta tiene movimientos marcados como posible fraude. Revisar con el área de seguridad.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Selector de cuenta */}
+      {cuentas.length > 1 && (
+        <div>
+          <p className="text-xs text-slate-500 mb-2">Seleccionar cuenta:</p>
+          <SelectorCuenta
+            cuentas={cuentas}
+            seleccionada={cuentaSel}
+            onChange={setCuentaSel}
+          />
+        </div>
+      )}
+
+      {/* Resumen de cuenta */}
+      <ResumenCuenta data={movData} />
+
+      {/* Controles de filtro */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Filtro tipo operación — RF-CLI-02 */}
+        <div className="flex rounded-lg overflow-hidden border border-slate-700 text-xs">
+          {['TODOS', 'DEPOSITO', 'RETIRO', 'TRANSFERENCIA', 'PAGO'].map((t) => (
+            <button
+              key={t}
+              onClick={() => setFiltroTipo(t)}
+              className={`px-3 py-1.5 transition-colors ${
+                filtroTipo === t
+                  ? 'bg-blue-700 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {t === 'TODOS' ? 'Todos' : TIPO_OP[t]?.label || t}
+            </button>
+          ))}
+        </div>
+
+        {/* Búsqueda por concepto */}
+        <input
+          type="text"
+          placeholder="Buscar por concepto…"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="flex-1 min-w-[160px] max-w-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+        />
+
+        <span className="text-xs text-slate-500 ml-auto">
+          {movsFiltrados.length} de {movData?.movimientos?.length ?? 0} movimientos
+        </span>
+      </div>
+
+      {/* Tabla de movimientos */}
+      {loadMovs ? (
+        <div className="flex items-center justify-center h-32 text-slate-400 gap-3">
+          <span className="animate-spin">⏳</span> Cargando movimientos…
+        </div>
+      ) : movsFiltrados.length === 0 ? (
+        <div className="text-center py-12 text-slate-500 text-sm">
+          No hay movimientos que coincidan con el filtro.
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-700 overflow-x-auto">
+          <table className="w-full text-sm min-w-[700px]">
+            <thead>
+              <tr className="bg-slate-800/90 text-left">
+                {['Operación', 'Concepto', 'Monto', 'Canal', 'Estado', 'Fecha/Hora', 'Flags'].map((h) => (
+                  <th key={h} className="py-2.5 px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {movsFiltrados.map((m) => (
+                <FilaMovimiento key={m.idTransaccion} mov={m} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+    </div>
+  )
+}
