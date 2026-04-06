@@ -3,7 +3,7 @@
 // Paleta: #1a3a6b (azul marino), blanco, grises claros
 
 import { useState, useEffect } from 'react'
-import { getCuentasPorCliente as cuentasPorCliente, getMovimientosCuenta as movimientosCuenta } from '../../../features/empleado/services/clienteApi'
+import { getCuentasPorCliente as cuentasPorCliente, getMovimientosCuenta as movimientosCuenta } from '../../../features/ejecutivo/services/clienteApi'
 import { TrazabilidadBar, RfBadge } from '../../../components/RfBadge'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

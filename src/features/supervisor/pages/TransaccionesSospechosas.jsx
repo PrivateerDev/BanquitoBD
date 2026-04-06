@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getSospechosas, marcarRevisada } from '../services/transaccionApi'
+import { getSospechosas, marcarRevisada } from '../../ejecutivo/services/transaccionApi'
 
 const TIPO_COLOR = {
   SPEI:     'bg-purple-100 text-purple-700',

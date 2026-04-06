@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getDocumentosPendientes, revisarDocumento } from '../services/documentoApi'
+import { getDocumentosPendientes, revisarDocumento } from '../../ejecutivo/services/documentoApi'
 import { useAuth } from '../../../context/AuthContext'
 
 // Claves según chk_solicitud_tipoproducto (V7__empleado_constraints_semilla.sql)

@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate }          from 'react-router-dom'
-import { getClientes }          from '../../features/empleado/services/clienteApi'
+import { getClientes }          from '../../features/ejecutivo/services/clienteApi'
 import { RfBadge }              from '../../components/RfBadge'
 
 export default function ClientesPage() {

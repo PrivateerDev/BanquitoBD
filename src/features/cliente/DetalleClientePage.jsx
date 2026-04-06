@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getClienteById as buscarClientePorId } from '../../features/empleado/services/clienteApi'
+import { getClienteById as buscarClientePorId } from '../../features/ejecutivo/services/clienteApi'
 import ProductosCliente  from './components/ProductosCliente'
 import MovimientosCuenta from './components/MovimientosCuenta'
 import { RfBadge, TrazabilidadBar } from '../../components/RfBadge'

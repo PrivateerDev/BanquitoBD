@@ -3,7 +3,7 @@
 // Paleta: #1a3a6b (azul marino), blanco, grises claros — consistente con el proyecto
 
 import { useState, useEffect } from 'react'
-import { getProductosCliente as productosCliente } from '../../../features/empleado/services/clienteApi'
+import { getProductosCliente as productosCliente } from '../../../features/ejecutivo/services/clienteApi'
 import { TrazabilidadBar, RfBadge } from '../../../components/RfBadge'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
