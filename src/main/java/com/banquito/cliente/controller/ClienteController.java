@@ -2,6 +2,10 @@ package com.banquito.cliente.controller;
 
 import com.banquito.cliente.dto.ClienteRequestDTO;
 import com.banquito.cliente.dto.ClienteResponseDTO;
+import com.banquito.cliente.dto.ClienteStatsDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import com.banquito.cliente.service.ClienteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +23,14 @@ public class ClienteController {
     private final ClienteService clienteService;
 
     @GetMapping
-    public ResponseEntity<List<ClienteResponseDTO>> listarClientes() {
-        return ResponseEntity.ok(clienteService.listarClientes());
+    public ResponseEntity<Page<ClienteResponseDTO>> listarClientes(
+            @PageableDefault(size = 20, sort = "idCliente") Pageable pageable) {
+        return ResponseEntity.ok(clienteService.listarClientes(pageable));
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<ClienteStatsDTO> obtenerStats() {
+        return ResponseEntity.ok(clienteService.obtenerStats());
     }
 
     @GetMapping("/{id}")
