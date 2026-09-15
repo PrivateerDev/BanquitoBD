@@ -17,7 +17,9 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-export const getClientes       = ()    => api.get('/clientes')
+export const getClientes       = (page = 0, size = 20) =>
+  api.get('/clientes', { params: { page, size } })
+export const getClienteStats   = ()    => api.get('/clientes/stats')
 export const getClienteById    = (id)  => api.get(`/clientes/${id}`)
 export const getClienteByEmail = (e)   => api.get(`/clientes/email/${e}`)
 

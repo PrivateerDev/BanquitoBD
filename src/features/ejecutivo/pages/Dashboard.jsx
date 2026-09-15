@@ -1,24 +1,39 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getClientes } from '../services/clienteApi'
+import { getClientes, getClienteStats } from '../services/clienteApi'
 import { useAuth } from '../../../context/AuthContext'
 import { TrazabilidadBar } from '../../../components/RfBadge'
 
 export default function Dashboard() {
   const [clientes, setClientes] = useState([])
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [totalElements, setTotalElements] = useState(0)
+  const [stats, setStats] = useState({ totalClientes: 0, totalActivos: 0, totalSucursales: 0 })
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
   const navigate  = useNavigate()
   const { empleado } = useAuth()
 
   useEffect(() => {
-    getClientes()
-      .then(res => setClientes(res.data))
-      .catch(() => setError('Error al cargar clientes'))
-      .finally(() => setLoading(false))
+    getClienteStats()
+      .then(res => setStats(res.data))
+      .catch(() => {})
   }, [])
 
-  if (loading) return (
+  useEffect(() => {
+    setLoading(true)
+    getClientes(page, 20)
+      .then(res => {
+        setClientes(res.data.content)
+        setTotalPages(res.data.totalPages)
+        setTotalElements(res.data.totalElements)
+      })
+      .catch(() => setError('Error al cargar clientes'))
+      .finally(() => setLoading(false))
+  }, [page])
+
+  if (loading && clientes.length === 0) return (
     <div className="flex items-center justify-center h-96">
       <p className="text-gray-500 animate-pulse">Cargando...</p>
     </div>
@@ -29,8 +44,6 @@ export default function Dashboard() {
     </div>
   )
 
-  const totalActivos   = clientes.filter(c => c.activo === 1).length
-  const totalSucursales = [...new Set(clientes.map(c => c.sucursalNombre))].length
 
   return (
     <div className="p-8">
@@ -73,17 +86,17 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-[#1a3a6b] text-white rounded-2xl p-6 shadow-md">
           <p className="text-blue-300 text-sm mb-1">Total Clientes</p>
-          <p className="text-4xl font-bold">{clientes.length}</p>
+          <p className="text-4xl font-bold">{stats.totalClientes}</p>
           <p className="text-blue-300 text-xs mt-2 font-mono">tblcliente</p>
         </div>
         <div className="bg-green-600 text-white rounded-2xl p-6 shadow-md">
           <p className="text-green-200 text-sm mb-1">Clientes Activos</p>
-          <p className="text-4xl font-bold">{totalActivos}</p>
+          <p className="text-4xl font-bold">{stats.totalActivos}</p>
           <p className="text-green-200 text-xs mt-2 font-mono">activo = 1</p>
         </div>
         <div className="bg-purple-700 text-white rounded-2xl p-6 shadow-md">
           <p className="text-purple-200 text-sm mb-1">Sucursales</p>
-          <p className="text-4xl font-bold">{totalSucursales}</p>
+          <p className="text-4xl font-bold">{stats.totalSucursales}</p>
           <p className="text-purple-200 text-xs mt-2 font-mono">tblsucursal</p>
         </div>
       </div>
@@ -126,7 +139,7 @@ export default function Dashboard() {
             <p className="text-xs text-gray-400 font-mono mt-0.5">tblcliente ← tblsucursal</p>
           </div>
           <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-            {clientes.length} registros
+            {totalElements} registros
           </span>
         </div>
 
@@ -180,6 +193,24 @@ export default function Dashboard() {
         </table>
         {clientes.length === 0 && (
           <p className="text-center text-gray-400 py-8">No hay clientes registrados</p>
+        )}
+
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="text-xs font-semibold text-[#1a3a6b] disabled:text-gray-300 disabled:cursor-not-allowed">
+              ← Anterior
+            </button>
+            <span className="text-xs text-gray-400">Página {page + 1} de {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="text-xs font-semibold text-[#1a3a6b] disabled:text-gray-300 disabled:cursor-not-allowed">
+              Siguiente →
+            </button>
+          </div>
         )}
       </div>
     </div>
