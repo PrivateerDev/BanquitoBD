@@ -10,8 +10,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import com.banquito.cliente.dto.ClienteStatsDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -20,12 +21,18 @@ public class ClienteService {
 
     private final ClienteRepository clienteRepository;
 
-    public List<ClienteResponseDTO> listarClientes() {
-        log.info("Listando todos los clientes");
-        return clienteRepository.findAll()
-                .stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
+    public Page<ClienteResponseDTO> listarClientes(Pageable pageable) {
+        log.info("Listando clientes, pagina {} tamano {}", pageable.getPageNumber(), pageable.getPageSize());
+        return clienteRepository.findAll(pageable).map(this::toDTO);
+    }
+
+    public ClienteStatsDTO obtenerStats() {
+        log.info("Calculando estadisticas de clientes");
+        return ClienteStatsDTO.builder()
+                .totalClientes(clienteRepository.count())
+                .totalActivos(clienteRepository.countByActivo((short) 1))
+                .totalSucursales(clienteRepository.countDistinctSucursales())
+                .build();
     }
 
     public ClienteResponseDTO buscarPorId(Integer id) {

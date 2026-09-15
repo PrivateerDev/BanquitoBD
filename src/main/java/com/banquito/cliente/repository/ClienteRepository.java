@@ -2,6 +2,7 @@ package com.banquito.cliente.repository;
 
 import com.banquito.cliente.model.Cliente;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
@@ -13,4 +14,9 @@ public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
     boolean existsByEmail(String email);
     boolean existsByRfc(String rfc);
     boolean existsByCurp(String curp);
+
+    long countByActivo(Short activo);
+
+    @Query("SELECT COUNT(DISTINCT c.sucursal.idSucursal) FROM Cliente c")
+    long countDistinctSucursales();
 }

@@ -6,6 +6,7 @@ import com.banquito.empleado.model.Empleado;
 import com.banquito.empleado.repository.EmpleadoRepository;
 import com.banquito.exception.BusinessException;
 import com.banquito.security.JwtUtil;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ public class EmpleadoService {
 
     private final EmpleadoRepository empleadoRepository;
     private final JwtUtil             jwtUtil;
+    private final PasswordEncoder     passwordEncoder;
 
     public LoginResponseDTO login(LoginRequestDTO req) {
         log.info("[Auth] Intento de login: {}", req.getEmail());
@@ -25,7 +27,7 @@ public class EmpleadoService {
                 .findByEmailAndActivo(req.getEmail(), (short) 1)
                 .orElseThrow(() -> new BusinessException("Credenciales invalidas"));
 
-        if (!req.getPassword().equals(emp.getPasswordHash())) {
+        if (!passwordEncoder.matches(req.getPassword(), emp.getPasswordHash())) {
             throw new BusinessException("Credenciales invalidas");
         }
 
